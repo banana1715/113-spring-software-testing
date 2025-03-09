@@ -29,8 +29,9 @@ test("Test MyClass's getStudentById", () => {
 
     // Invalid ID cases
     assert.strictEqual(myClass.getStudentById(-1), null);
-    assert.strictEqual(myClass.getStudentById(100), null);
+    assert.strictEqual(myClass.getStudentById(101), null);
 });
+
 
 test("Test Student's setName", () => {
     const student = new Student();
