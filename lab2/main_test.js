@@ -144,3 +144,26 @@ test('Application.notifySelected should call write and send for each person', ()
   app.mailSystem.write = originalWrite;
   app.mailSystem.send = originalSend;
 });
+// Test that selectNextPerson loops until a non-duplicate is returned.
+test('Application.selectNextPerson should loop until a non-duplicate is selected', () => {
+    const app = new Application();
+    app.people = ['Alice', 'Bob', 'Charlie'];
+    app.selected = ['Alice']; // Already selected 'Alice'
+  
+    // Override getRandomPerson to simulate a duplicate on first call,
+    // and a unique name on the second call.
+    let callCount = 0;
+    app.getRandomPerson = function() {
+      callCount++;
+      if (callCount === 1) {
+        return 'Alice'; // Duplicate value
+      } else {
+        return 'Bob'; // New value, not in selected
+      }
+    };
+  
+    const selectedPerson = app.selectNextPerson();
+    assert.strictEqual(selectedPerson, 'Bob');
+    assert.strictEqual(callCount, 2); // Should call getRandomPerson twice
+  
+  });
