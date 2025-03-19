@@ -3,31 +3,44 @@ const assert = require('assert');
 const fs = require('fs');
 const { Application, MailSystem } = require('./main');
 
-// Utility function to delay a bit
+// Helper: create Application without triggering file read error.
+// Override getNames so that it immediately returns a resolved promise.
+function createTestApplicationWithoutFileRead() {
+  const originalGetNames = Application.prototype.getNames;
+  Application.prototype.getNames = function() {
+    return Promise.resolve([this.people, this.selected]);
+  };
+  const app = new Application();
+  // Immediately restore the original getNames for any later use.
+  Application.prototype.getNames = originalGetNames;
+  return app;
+}
+
+// Utility function for a small delay.
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Test Application.getNames by writing a temporary file 'name_list.txt'
+// Test: Application.getNames should read names from file.
 test('Application.getNames should read names from file', async () => {
   const testData = "Alice\nBob\nCharlie";
   fs.writeFileSync('name_list.txt', testData, 'utf8');
 
+  // Use the real getNames.
   const app = new Application();
   const [people, selected] = await app.getNames();
   assert.deepStrictEqual(people, ['Alice', 'Bob', 'Charlie']);
 
-  // Clean up the temporary file
   fs.unlinkSync('name_list.txt');
 });
 
-// Test that the Application constructor initializes people and selected correctly.
+// Test: Application constructor should initialize people and selected.
 test('Application constructor should initialize people and selected', async () => {
   const testData = "Alice\nBob";
   fs.writeFileSync('name_list.txt', testData, 'utf8');
 
   const app = new Application();
-  // Wait a bit for the asynchronous constructor call to complete.
+  // Wait a bit for the asynchronous constructor to complete.
   await delay(20);
   assert.deepStrictEqual(app.people, ['Alice', 'Bob']);
   assert.deepStrictEqual(app.selected, []);
@@ -35,13 +48,13 @@ test('Application constructor should initialize people and selected', async () =
   fs.unlinkSync('name_list.txt');
 });
 
-// Test Application.getRandomPerson returns a valid name.
+// Test: getRandomPerson returns a valid name.
 test('Application.getRandomPerson should return a valid name', () => {
-  const app = new Application();
+  const app =tionWithoutFileRead();
   app.people = ['Alice', 'Bob', 'Charlie'];
 
   const originalRandom = Math.random;
-  Math.random = () => 0.5; // For 3 items, floor(0.5 * 3) = 1, expecting 'Bob'
+  Math.random = () => 0.5; // floor(0.5 * 3) = 1, expecting 'Bob'
   
   const person = app.getRandomPerson();
   assert.strictEqual(person, 'Bob');
@@ -49,14 +62,14 @@ test('Application.getRandomPerson should return a valid name', () => {
   Math.random = originalRandom;
 });
 
-// Test Application.selectNextPerson avoids duplicate selections.
+// Test: selectNextPerson avoids duplicate selections.
 test('Application.selectNextPerson should avoid duplicates', () => {
-  const app = new Application();
+  const app = createTestApplicationWithoutFileRead();
   app.people = ['Alice', 'Bob', 'Charlie'];
   app.selected = ['Alice'];
 
   const originalRandom = Math.random;
-  // Force Math.random to return a value that selects 'Charlie'
+  // Force Math.random to return a value that se createTestApplicalects 'Charlie'
   Math.random = () => 0.8; // floor(0.8 * 3) = 2 -> 'Charlie'
   
   const person = app.selectNextPerson();
@@ -66,9 +79,9 @@ test('Application.selectNextPerson should avoid duplicates', () => {
   Math.random = originalRandom;
 });
 
-// Test Application.selectNextPerson returns null if all persons have been selected.
+// Test: selectNextPerson returns null if all persons have been selected.
 test('Application.selectNextPerson should return null if all selected', () => {
-  const app = new Application();
+  const app = createTestApplicationWithoutFileRead();
   app.people = ['Alice', 'Bob'];
   app.selected = ['Alice', 'Bob'];
 
@@ -76,14 +89,37 @@ test('Application.selectNextPerson should return null if all selected', () => {
   assert.strictEqual(person, null);
 });
 
-// Test MailSystem.write generates the correct mail content.
+// Test: selectNextPerson loops until a non-duplicate is selected.
+test('Application.selectNextPerson should loop until a non-duplicate is selected', () => {
+  const app = createTestApplicationWithoutFileRead();
+  app.people = ['Alice', 'Bob', 'Charlie'];
+  app.selected = ['Alice']; // 'Alice' already selected
+
+  // Override getRandomPerson to simulate a duplicate on first call,
+  // then a unique name on the second call.
+  let callCount = 0;
+  app.getRandomPerson = function() {
+    callCount++;
+    if (callCount === 1) {
+      return 'Alice'; // duplicate value
+    } else {
+      return 'Bob'; // new value
+    }
+  };
+
+  const selectedPerson = app.selectNextPerson();
+  assert.strictEqual(selectedPerson, 'Bob');
+  assert.strictEqual(callCount, 2); // getRandomPerson should be called twice
+});
+
+// Test: MailSystem.write generates the correct mail content.
 test('MailSystem.write should generate correct mail content', () => {
   const mailSystem = new MailSystem();
   const content = mailSystem.write('Alice');
   assert.strictEqual(content, 'Congrats, Alice!');
 });
 
-// Test MailSystem.send returns true when Math.random is high.
+// Test: MailSystem.send returns true when Math.random is high.
 test('MailSystem.send should return true when Math.random is high', () => {
   const mailSystem = new MailSystem();
   const originalRandom = Math.random;
@@ -95,7 +131,7 @@ test('MailSystem.send should return true when Math.random is high', () => {
   Math.random = originalRandom;
 });
 
-// Test MailSystem.send returns false when Math.random is low.
+// Test: MailSystem.send returns false when Math.random is low.
 test('MailSystem.send should return false when Math.random is low', () => {
   const mailSystem = new MailSystem();
   const originalRandom = Math.random;
@@ -107,20 +143,18 @@ test('MailSystem.send should return false when Math.random is low', () => {
   Math.random = originalRandom;
 });
 
-// Test Application.notifySelected calls write and send for each person.
+// Test: notifySelected calls write and send for each selected person.
 test('Application.notifySelected should call write and send for each person', () => {
-  const app = new Application();
+  const app = createTestApplicationWithoutFileRead();
   app.selected = ['Alice', 'Bob'];
 
-  // Create arrays to record calls.
   let writeCalls = [];
   let sendCalls = [];
   
-  // Backup original methods.
   const originalWrite = app.mailSystem.write;
   const originalSend = app.mailSystem.send;
 
-  // Override write and send.
+  // Override write and send to record calls.
   app.mailSystem.write = function(name) {
     writeCalls.push(name);
     return 'Congrats!';
@@ -133,37 +167,11 @@ test('Application.notifySelected should call write and send for each person', ()
 
   app.notifySelected();
 
-  // Verify that write was called for each selected person.
   assert.deepStrictEqual(writeCalls, ['Alice', 'Bob']);
-  // Verify that send was called with the correct parameters.
   assert.strictEqual(sendCalls.length, 2);
   assert.deepStrictEqual(sendCalls[0], { name: 'Alice', context: 'Congrats!' });
   assert.deepStrictEqual(sendCalls[1], { name: 'Bob', context: 'Congrats!' });
 
-  // Restore original methods.
   app.mailSystem.write = originalWrite;
   app.mailSystem.send = originalSend;
 });
-// Test that selectNextPerson loops until a non-duplicate is returned.
-test('Application.selectNextPerson should loop until a non-duplicate is selected', () => {
-    const app = new Application();
-    app.people = ['Alice', 'Bob', 'Charlie'];
-    app.selected = ['Alice']; // Already selected 'Alice'
-  
-    // Override getRandomPerson to simulate a duplicate on first call,
-    // and a unique name on the second call.
-    let callCount = 0;
-    app.getRandomPerson = function() {
-      callCount++;
-      if (callCount === 1) {
-        return 'Alice'; // Duplicate value
-      } else {
-        return 'Bob'; // New value, not in selected
-      }
-    };
-  
-    const selectedPerson = app.selectNextPerson();
-    assert.strictEqual(selectedPerson, 'Bob');
-    assert.strictEqual(callCount, 2); // Should call getRandomPerson twice
-  
-  });
