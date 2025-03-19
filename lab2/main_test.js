@@ -50,7 +50,7 @@ test('Application constructor should initialize people and selected', async () =
 
 // Test: getRandomPerson returns a valid name.
 test('Application.getRandomPerson should return a valid name', () => {
-  const app =tionWithoutFileRead();
+  const app = createTestApplicationWithoutFileRead();
   app.people = ['Alice', 'Bob', 'Charlie'];
 
   const originalRandom = Math.random;
@@ -69,7 +69,7 @@ test('Application.selectNextPerson should avoid duplicates', () => {
   app.selected = ['Alice'];
 
   const originalRandom = Math.random;
-  // Force Math.random to return a value that se createTestApplicalects 'Charlie'
+  // Force Math.random to return a value that selects 'Charlie'
   Math.random = () => 0.8; // floor(0.8 * 3) = 2 -> 'Charlie'
   
   const person = app.selectNextPerson();
