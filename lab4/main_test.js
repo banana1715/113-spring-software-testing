@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 
 (async () => {
+
   // Launch the browser (set headless: false if you want to see the actions)
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
@@ -32,4 +33,6 @@ await page.click('#__docusaurus > nav > div.navbar__inner > div.navbar__items.na
 );
 console.log(title);
 await browser.close();
+
 })();
+
