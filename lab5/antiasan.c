@@ -1,4 +1,5 @@
 
+
 #include <string.h>
 
 extern char gS[]; 
