@@ -8,7 +8,7 @@ def main():
     proj = angr.Project('./chal', auto_load_libs=False)
 
     # 建立 8 個符號字元
-    flag_chars = [claripy.BVS(f'c{i}', 8) for i in range(8)]
+    flag_chars = [claripy.BVS(f'byte_{i}', 8) for i in range(8)]
     flag = claripy.Concat(*flag_chars)
 
     # 製作帶有符號輸入的初始狀態
@@ -21,7 +21,7 @@ def main():
     simgr = proj.factory.simulation_manager(state)
 
     # 尋找印出「Correct! The flag is」的路徑
-    target = b"Correct! The flag is"
+    target = b"Correct!"
     simgr.explore(find=lambda s: target in s.posix.dumps(1))
 
     if simgr.found:
