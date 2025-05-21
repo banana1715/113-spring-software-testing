@@ -1,36 +1,41 @@
 #!/usr/bin/env python3
-
 import angr
 import claripy
 import sys
 
 def main():
-    # 1) load the challenge binary
+    # 載入二進位，不載入動態函式庫加快速度
     proj = angr.Project('./chal', auto_load_libs=False)
 
-    # 2) create 8 symbolic bytes plus a trailing newline (fgets strips it)
+    # 建立 8 個符號字元
     flag_chars = [claripy.BVS(f'c{i}', 8) for i in range(8)]
-    sym_input = claripy.Concat(*flag_chars, claripy.BVV(b'\n'))
+    flag = claripy.Concat(*flag_chars)
 
-    # 3) set up the initial state with our symbolic stdin
-    state = proj.factory.entry_state(stdin=sym_input)
+    # 製作帶有符號輸入的初始狀態
+    # has_end=True 表示讀到 flag 後即結束輸入
+    stdin = angr.SimFileStream(name='stdin', content=flag, has_end=True)
+    state = proj.factory.full_init_state(stdin=stdin)
 
-    # 4) explore until we hit the “Correct!” branch (and avoid wrong key)
+    # 限制每個字元為可列印 ASCII（32~126）
+    for c in flag_chars:
+        state.solver.add(c >= 0x20)
+        state.solver.add(c <= 0x7e)
+
     simgr = proj.factory.simulation_manager(state)
-    simgr.explore(
-        find=lambda s: b"Correct! The flag is:" in s.posix.dumps(1),
-        avoid=lambda s: b"Wrong key!"           in s.posix.dumps(1)
-    )
 
-    # 5) extract and print the concrete 8-byte key
+    # 尋找印出「Correct! The flag is」的路徑
+    target = b"Correct! The flag is"
+    simgr.explore(find=lambda s: target in s.posix.dumps(1))
+
     if simgr.found:
         found = simgr.found[0]
-        solution = found.solver.eval(claripy.Concat(*flag_chars), cast_to=bytes)
-        # write exactly the 8-byte key (no extra newline)
+        # 求解出具體 key
+        solution = found.solver.eval(flag, cast_to=bytes)
+        # 輸出到 stdout，供 validate.sh 傳給 chal
         sys.stdout.buffer.write(solution)
     else:
-        sys.exit("[-] No solution found.")
-
+        print("No solution found.", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
