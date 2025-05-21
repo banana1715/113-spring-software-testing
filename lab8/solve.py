@@ -16,10 +16,7 @@ def main():
     stdin = angr.SimFileStream(name='stdin', content=flag, has_end=True)
     state = proj.factory.full_init_state(stdin=stdin)
 
-    # 限制每個字元為可列印 ASCII（32~126）
-    for c in flag_chars:
-        state.solver.add(c >= 0x20)
-        state.solver.add(c <= 0x7e)
+
 
     simgr = proj.factory.simulation_manager(state)
 
@@ -34,7 +31,7 @@ def main():
         # 輸出到 stdout，供 validate.sh 傳給 chal
         sys.stdout.buffer.write(solution)
     else:
-        print("No solution found.", file=sys.stderr)
+        print("No solution found.")
         sys.exit(1)
 
 if __name__ == '__main__':
